@@ -1,0 +1,102 @@
+---
+title: "Anions"
+author: "Matilda Andersson"
+date: "2025-10-01"
+output: html_document
+---
+
+install.packages("usethis")  # if needed
+usethis::use_gitignore()
+usethis::use_git()
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+#Uppsala results
+You need to use code specifically for UU because they format their data in a specific way and have specific units
+CHECK SOMETHING - check in the header that everything is mg/L -- otherwise you need a different conversion 
+CHECK that they have decimals as . and not ,
+CHECK that they don't have any duplicates (labeled duplicate in the )
+
+load data - sometimes the filenames are different so you cant fully automate
+*CHANGE SOMETHING MANUALLY HERE*
+```{r}
+rm(list = ls())
+
+rawfile <- "anions_UU_Skogaryd_2025" #ENTER YOUR FILENAME HERE
+
+filepath <- paste0("LabResults/Anions/", rawfile, ".xlsx")
+df <- read_excel(filepath, sheet = "RESULTS")
+
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "Skogaryd" #STATION NAME HERE
+StartYear <- 2025 #START YEAR HERE
+EndYear <- 2025 #END YEAR HERE
+```
+
+**check results** - if something other than mg/L shows up you will need to do a conversion
+```{r}
+unique(as.character(unlist(df[1, ])))
+```
+
+drop unnecessary columns and rows
+```{r}
+#drop anything below the data
+df <- df %>%
+  filter(row_number() <= max(which(complete.cases(.))))
+
+#drop the column SO4 (you only need SO4-S) --- you only need this if you haven't manually removed this column when fixing the excel sheet
+df <- df %>%
+  select(-any_of("SO4"))
+
+# the column names are correct and are what is used on the portal so we will just drop row 2
+df <- df %>%
+  slice(-1)
+
+#change the column name of the first column
+df <- df %>%
+  rename(SampleID = 1)
+
+df <- df %>%
+  mutate(SampleID = sub(".*?\\s+", "", SampleID))
+```
+
+remove values below LOD 
+We are going to change anything with a < to to 0.000 and then change that to LOD after doing the unit conversion
+```{r}
+df <- df %>%
+  mutate(across(everything(), ~ ifelse(grepl("^<", .), 0.000, .)))
+```
+
+```{r}
+df <- df %>%
+  # convert all columns except the first to numeric
+  mutate(across(-1, as.numeric))
+```
+
+for the Uppsala data you need to convert everything from mg/L to ug/L
+you should double check the original file that it's all mg
+```{r}
+#then recalculate
+df <- df %>%
+  mutate(across(-SampleID, ~ as.numeric(.) * 1000))
+```
+
+add LOD
+```{r}
+df <- df %>%
+  mutate(across(-SampleID, ~ ifelse(. == 0.000, "LOD", .)))
+```
+
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/Anions_", StationName, "_", StartYear,"_",EndYear, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE, quote = FALSE)
+```

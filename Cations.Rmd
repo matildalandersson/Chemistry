@@ -1,0 +1,88 @@
+---
+title: "Cations"
+author: "Matilda Andersson"
+date: "2025-10-01"
+output: html_document
+---
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+
+#GU - lab
+
+load data - sometimes the filenames are different so you cant fully automate
+*CHANGE SOMETHING MANUALLY HERE*
+```{r}
+rawfile <- "cations_GU_Abisko_25" #ENTER YOUR FILENAME HERE
+
+#use for .csv
+filepath <- paste0("LabResults/Cations/", rawfile, ".csv")
+df <- read_csv(filepath)
+
+#use for .xlsx
+filepath <- paste0("LabResults/Cations/", rawfile, ".xlsx")
+df <- read_excel(filepath)
+
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "Abisko" #STATION NAME HERE
+StartYear <- 2024 #START YEAR HERE
+EndYear <- 2025 #END YEAR HERE
+```
+
+clean up
+```{r}
+#drop first column
+df <- df |> 
+  select(-`Measurement session`, -element)
+
+df <- df %>%
+  drop_na(`Sample Name`)
+
+#only keep the columns that don't start with ... (those had RSD in them)
+df <- df %>%
+  select(!starts_with("..."))
+```
+
+Double check that you don't have any 9999s
+This returns TRUE if any cell equals 9999, and FALSE if no cells equal 9999.
+```{r}
+any(df == 9999, na.rm = TRUE)
+```
+
+*as long as the answer above is FALSE continue - if not you need more code*
+deal with LOD
+We are going to change anything with a < to to 9999 and then change that to LOD after doing the unit conversion
+```{r}
+df <- df %>%
+  mutate(across(everything(), ~ ifelse(grepl("^<", .), 9999, .)))
+
+df <- df %>%
+  mutate(across(-1, as.numeric))
+
+df <- df %>%
+  mutate(across(-`Sample Name`, ~ ifelse(. == 9999, "LOD", .)))
+```
+
+Rename
+```{r}
+df <- df %>%
+  rename(
+    SampleID = `Sample Name`)
+```
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/Cations_", StationName, "_", StartYear,"_",EndYear, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE, quote = FALSE)
+```
+
+
+
+

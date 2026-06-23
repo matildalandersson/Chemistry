@@ -1,0 +1,24 @@
+.Rproj.user
+.Rhistory
+.RData
+.httr-oauth
+.DS_Store
+.quarto
+
+# Ignore file types
+*.xlsx
+*.csv
+
+# Ignore folders (for now)
+Erken/
+/FinalChemFiles/
+/LabResults/
+/OnPortal/
+/ProcessedData/
+/QC_plots/
+/TagTag/
+
+#ignore until approved
+*Absorbance.Rmd
+*Asa_Chemistry_Merge.Rmd
+*DOCandTOTN.Rmd
