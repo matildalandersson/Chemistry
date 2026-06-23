@@ -1,0 +1,115 @@
+---
+title: "NP"
+author: "Matilda Andersson"
+date: "2025-10-01"
+output: html_document
+---
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+#SLU Umeå
+NOTE - check the detection limits in the file to make sure they are the same as the header template
+Create a new sheet called RESULTS - just copy paste the full table into it (starting with the green boxes)
+
+load data - sometimes the filenames are different so you cant fully automate
+*CHANGE SOMETHING MANUALLY HERE*
+```{r}
+rawfile <- "NP_SLU_Umeå_Asa_20241113" #ENTER YOUR FILENAME HERE
+
+filepath <- paste0("LabResults/NP/", rawfile, ".xlsx")
+df <- read_excel(filepath, sheet = "RESULTS")
+
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "Asa" #STATION NAME HERE
+StartYear <- 2023 #START YEAR HERE
+EndYear <- 2024 #END YEAR HERE
+```
+
+*check results*
+if something other than ug/L shows up you will need to do a conversion
+```{r}
+unique(as.character(unlist(df[1, ])))
+```
+
+as long as the above is µg/L - continue
+```{r}
+#drop the first row
+df <- df %>%
+  slice(-1)
+
+#drop unnecessary columns
+df <- df %>%
+  select(-any_of(c("CUSTID 1", "CUSTID 2", "KUNDID 1", "KUNDID")))
+```
+
+*check data*
+Check whether there are any that = 9999 (using this as the error code)
+```{r}
+df %>%
+  summarise(across(everything(), ~ any(. == 9999, na.rm = TRUE)))
+```
+
+
+*check results*
+Check whether there are any LODs in the results - if there are you need to convert them to 9999 and then convert them back later 
+```{r}
+df %>%
+  summarise(across(everything(), ~ any(grepl("^<$|^LOD$|^<LOD$", ., ignore.case = TRUE), na.rm = TRUE))) #this shows anything that has < or LOD or <LOD, this should also catch any weird spaces in the LOD cell
+
+#only need to run this if there are LOD above
+df <- df %>%
+  mutate(across(everything(), ~ ifelse(grepl("^<|^LOD$", ., ignore.case = TRUE), 9999, .)))
+```
+
+convert to numeric
+```{r}
+df <- df %>%  # convert all columns except the first to numeric
+ mutate(across(-1, as.numeric))
+```
+
+*check results*
+This is looking for values below LOD -- that need to be converted to LOD -- if there are any you need to add more code
+You want it to say numeric(0) - then you don't need to do anything else
+```{r}
+df %>%
+  filter(`P-PO4` < 0.4) %>%
+  pull(`P-PO4`)
+
+df %>%
+  filter(`N-NH4` < 0.3) %>%
+  pull(`N-NH4`)
+
+df %>%
+  filter(`N-NO3` < 0.4) %>%
+  pull(`N-NO3`)
+```
+
+change names
+```{r}
+df <- df %>%
+  rename(
+    SampleID = `LABID`,
+    `PO4-P` = `P-PO4`,
+    `NH4-N` = `N-NH4`,
+    `NO3-N` = `N-NO3`)
+```
+
+*convert anything with 9999 to LOD
+```{r}
+df <- df %>%
+  mutate(across(-SampleID, ~ ifelse(. == 9999, "LOD", .)))
+```
+
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/NP_", StationName, "_", StartYear,"_",EndYear, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE, quote = FALSE)
+```

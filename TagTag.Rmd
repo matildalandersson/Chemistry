@@ -1,0 +1,131 @@
+---
+title: "TagTag"
+author: "Matilda Andersson"
+date: "2025-10-01"
+output: html_document
+---
+
+NOTE
+ABISKO CODE AT THE BOTTOM
+For the older abisko data there isn't TagTag so there is specific code at the bottom to deal with that
+
+Load packages
+```{r}
+library(tidyverse)
+library(readxl)
+library(lubridate)
+```
+
+load data - sometimes the filenames are different so you cant fully automate
+*CHANGE SOMETHING MANUALLY HERE*
+```{r}
+rawfile <- "5-101F TagTags export_Skogaryd_2024" #ENTER YOUR FILENAME HERE
+
+filepath <- paste0("TagTag/2024/", rawfile, ".xlsx")
+df <- read_excel(filepath)
+
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "Skogaryd" #STATION NAME HERE
+Year <- 2024 #START YEAR HERE
+```
+
+select columns to keep
+```{r}
+df <- df |> 
+  select(Identifier,date, time, hach_ph, hach_ph_temp, hach_conductivity, hach_conductivity_temp, o2_mgl, o2_sat, o2_temp)
+```
+
+```{r}
+df <- df %>%
+  mutate(across(-(1:3), as.numeric))
+```
+
+```{r}
+#drop any row with an NA in date
+df <- df %>%
+  filter(!is.na(date))
+
+#fill empty cells in time
+df <- df %>%
+  mutate(time = replace_na(time, as.POSIXct("1899-12-31 12:00:00")))
+
+df <- df %>%
+  mutate(TIMESTAMP = ymd_hms(paste(as.Date(date), 
+                                   format(time, "%H:%M:%S"))))
+
+df <- df |> 
+  select(-date,-time)
+
+df <- df %>%
+  rename(
+    SampleID = `Identifier`,
+    pH = hach_ph,
+    TW_pH = hach_ph_temp, 
+    EC = hach_conductivity, 
+    TW_EC = hach_conductivity_temp, 
+    O2 = o2_mgl,
+    O2SAT = o2_sat,
+    TW_O2 = o2_temp)
+
+df <- df %>%
+  relocate(TIMESTAMP, .after = SampleID)
+```
+
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/TagTag_", StationName, "_", Year, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE)
+```
+
+```{r}
+rm(list = ls())
+```
+
+
+#Abisko - before TagTag
+*CHANGE SOMETHING MANUALLY HERE*
+```{r}
+rawfile <- "Almberga_grab_sample_LOG_from2022" #ENTER YOUR FILENAME HERE
+
+filepath <- paste0("TagTag/2024/", rawfile, ".xlsx")
+df <- read_excel(filepath)
+
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "ANS" #STATION NAME HERE
+SamplingLocation <- "ALM" #SAMPLING LOCATION HERE (if there are different logs for each location)
+Year <- 2022 #START YEAR HERE
+```
+
+clean up and re-name
+```{r}
+#duplicate the depth column (for the early years they had integrated samples)
+df <- df %>%
+  mutate(
+    D_WATER_MIN = `Sampling depth`,
+    D_WATER_MAX = `Sampling depth`) %>%
+  select(-`Sampling depth`)
+
+df <- df %>%
+  rename(
+    SampleID = `QR code`,
+    pH = `pH (25C)`)
+
+df <- df %>%
+  relocate(TIMESTAMP, .after = SampleID)
+```
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/TagTag_", StationName, "_", SamplingLocation, "_", Year, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE)
+```
+
+
+

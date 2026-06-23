@@ -1,0 +1,255 @@
+---
+title: "Merge Stream Chemistry Datasets"
+author: "Matilda Andersson"
+date: "2025-10-01"
+output: html_document
+---
+
+load packages
+```{r}
+library(tidyverse)
+```
+
+load data
+```{r}
+#Example
+# TagTag <- read_csv("ProcessedData/TagTag_Skogaryd_2024.csv")
+# Anions_Skogaryd_2023_2023 <- read_csv("ProcessedData/Anions_Skogaryd_2023-2023.csv")
+
+#Add you data here - you could maybe change this so that it uploads an entire folder
+TagTag <- read_csv("ProcessedData/TagTag_Abisko_Miellejohka_2022.csv")
+
+NP_Abisko_2021_2022 <- read_csv("ProcessedData/NP_Abisko_2021_2022.csv")
+NP_Abisko_2022_2023 <- read_csv("ProcessedData/NP_Abisko_2022_2023.csv")
+NP_Abisko_2023_2023 <- read_csv("ProcessedData/NP_Abisko_2023_2023.csv")
+NP_Abisko_2023_2024 <- read_csv("ProcessedData/NP_Abisko_2023_2024.csv")
+
+DOC_TOTN_Abisko_2022_2022 <- read_csv("ProcessedData/DOC_NTOT_Abisko_2022_2022.csv")
+DOC_TOTN_Abisko_2022_2023 <- read_csv("ProcessedData/DOC_NTOT_Abisko_2022_2023.csv")
+DOC_TOTN_Abisko_2023_2023 <- read_csv("ProcessedData/DOC_NTOT_Abisko_2023_2023.csv")
+DOC_TOTN_Abisko_2023_2024 <- read_csv("ProcessedData/DOC_NTOT_Abisko_2023_2024.csv")
+
+Anions_Abisko_2021_2022 <- read_csv("ProcessedData/Anions_Abisko_2021_2022.csv")
+Anions_Abisko_2022_2023 <- read_csv("ProcessedData/Anions_Abisko_2022_2023.csv")
+Anions_Abisko_2023_2024 <- read_csv("ProcessedData/Anions_Abisko_2023_2024.csv")
+
+Cations_Abisko_2021_2022 <- read_csv("ProcessedData/Cations_Abisko_2021_2022.csv")
+Cations_Abisko_2022_2024 <- read_csv("ProcessedData/Cations_Abisko_2022_2024.csv")
+Cations_Abisko_2024_2024 <- read_csv("ProcessedData/Cations_Abisko_2024_2024.csv")
+```
+
+```{r}
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "ANS" #STATION Abrevitation here
+SamplingLocation <- "MJH" #sampling code here
+EndYear <- 2024 #END YEAR HERE
+```
+
+
+change everything to character since you are merging some that have LOD
+```{r}
+TagTag <- TagTag %>%
+  mutate(across(-TIMESTAMP, as.character))
+
+# Get all dataframe names in the environment except TagTag
+df_names <- ls()[sapply(ls(), function(x) is.data.frame(get(x)))]
+df_names <- df_names[df_names != "TagTag"]
+
+# Convert all columns to character for each dataframe
+for(df_name in df_names) {
+  assign(df_name, get(df_name) %>% mutate(across(everything(), as.character)))
+}
+```
+
+merge any overlapping datasets
+```{r}
+#NP
+NP <- bind_rows(NP_Abisko_2021_2022, NP_Abisko_2022_2023, NP_Abisko_2023_2023, NP_Abisko_2023_2024)
+
+rm(NP_Abisko_2021_2022, NP_Abisko_2022_2023, NP_Abisko_2023_2023, NP_Abisko_2023_2024)
+
+#DOC
+DOC_TOTN <- bind_rows(DOC_TOTN_Abisko_2022_2022,DOC_TOTN_Abisko_2022_2023, DOC_TOTN_Abisko_2023_2023, DOC_TOTN_Abisko_2023_2024)
+
+rm(DOC_TOTN_Abisko_2022_2022, DOC_TOTN_Abisko_2022_2023, DOC_TOTN_Abisko_2023_2023, DOC_TOTN_Abisko_2023_2024)
+
+#Anions
+Anions <- bind_rows(Anions_Abisko_2021_2022, Anions_Abisko_2022_2023, Anions_Abisko_2023_2024)
+
+rm(Anions_Abisko_2021_2022, Anions_Abisko_2022_2023, Anions_Abisko_2023_2024)
+
+
+#Cations
+Cations <- bind_rows(Cations_Abisko_2021_2022 , Cations_Abisko_2022_2024, Cations_Abisko_2024_2024)
+
+rm(Cations_Abisko_2021_2022, Cations_Abisko_2022_2024, Cations_Abisko_2024_2024)
+
+```
+
+
+merge data - keep everything from TagTag leave NAs in the other locations
+```{r}
+TagTag <- TagTag %>%
+  left_join(DOC_TOTN, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(NP, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Anions, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Cations, by = "SampleID")
+
+rm(DOC_TOTN, NP, Anions, Cations)
+
+#just for abisko - drop F until things are re-run - there was a problem with a difference in magnitude between the two labs
+TagTag <- TagTag %>% 
+  select(-"F")
+```
+
+
+#Data on Portal
+##Upload data
+Almbergasjön: SITES_CHEM-L_ANS_ALP_20170626-20220924_L2_irregular
+Miellejohka: SITES_CHEM-S_ANS_MJH_20170407-20220920_L2_irregular
+```{r}
+lines <- readLines("OnPortal/SITES_CHEM-S_ANS_MJH_20170407-20220920_L2_irregular.csv")
+skip_lines <- which(str_detect(lines, "####"))[1]
+OnPortal <- read_csv("OnPortal/SITES_CHEM-S_ANS_MJH_20170407-20220920_L2_irregular.csv", skip = skip_lines)
+
+#just for abisko 
+OnPortal <- OnPortal %>%
+  filter(TIMESTAMP <= as.Date("2022-04-05"))
+```
+
+##Reformat for preview
+```{r}
+#change LOD to NA for the preview
+OnPortal_long <- OnPortal %>%
+  mutate(across(where(is.character) & -TIMESTAMP, ~na_if(., "LOD")))
+
+
+#change NaN to NA and convert to numeric for the preview
+OnPortal_long <- OnPortal_long %>%
+  mutate(across(where(~is.numeric(.) | is.character(.)) & -TIMESTAMP, 
+                ~suppressWarnings(as.numeric(ifelse(. == "NaN", NA, .)))))
+
+#Pivot to long format
+OnPortal_long <- OnPortal_long |> 
+  pivot_longer(cols = -c(TIMESTAMP), names_to = "Variable", values_to = "Value")
+
+OnPortal_long <- OnPortal_long %>%
+  drop_na(Value)
+
+#add a column saying that this is the data from the portal
+OnPortal_long <-  OnPortal_long %>% 
+  mutate(dataset = "OnPortal")
+```
+
+reformat new data for preview
+```{r}
+TagTag_long <- TagTag %>% 
+  select(-SampleID)
+
+TagTag_long <- TagTag_long %>%
+  mutate(TIMESTAMP = as.POSIXct(TIMESTAMP, format = "%Y-%m-%d %H:%M"))
+
+#change LOD to NA for the preview
+TagTag_long <- TagTag_long %>%
+  mutate(across(where(is.character) & -TIMESTAMP, ~na_if(., "LOD")))
+
+#change NaN to NA and convert to numeric for the preview
+TagTag_long <- TagTag_long %>%
+  mutate(across(where(~is.numeric(.) | is.character(.)) & -TIMESTAMP, 
+                ~suppressWarnings(as.numeric(ifelse(. == "NaN", NA, .)))))
+
+#Pivot to long format
+TagTag_long <- TagTag_long |> 
+  pivot_longer(cols = -c(TIMESTAMP), names_to = "Variable", values_to = "Value")
+
+TagTag_long <- TagTag_long %>%
+  drop_na(Value)
+
+#add a column saying that this is the new data
+TagTag_long <-  TagTag_long %>% 
+  mutate(dataset = "NewData")
+```
+
+
+#Preview all data
+NOTE - change Date to TIMESTAMP in the ggplot code when Robyn sends you the sampling protocols from 2023
+```{r}
+#combine the long formats of the old and new data here
+chem_combined_long <- bind_rows(OnPortal_long, TagTag_long)
+
+library(ggforce) #for the qc plots
+
+pdf(paste0(StationName, "_", SamplingLocation, "_QC_plots.pdf"), width = 11, height = 8.5)
+
+n_pages <- nlevels(factor(chem_combined_long$Variable)) %/% 6 + 1 #if it divides evenly you don't need the plus one and it will throw and error but the error only means there is an extra page, which is fine. 
+
+for (i in seq_len(n_pages)) {
+
+  p <- ggplot(chem_combined_long,
+    aes(TIMESTAMP, Value, color = dataset)) +
+    geom_line(linewidth = 0.3) +
+    geom_point(size = 0.6) +
+    facet_wrap_paginate(
+      ~ Variable,
+      scales = "free_y",
+      ncol = 2,
+      nrow = 3,
+      page = i) +
+    scale_color_manual(values = c(
+      "OnPortal" = "grey60",
+      "NewData"  = "black")) +
+    labs(
+      title = paste("QC plots — page", i),
+      x = "Date",
+      y = "Value",
+      color = "Dataset") +
+    theme_light()
+
+  print(p)   # one page per iteration
+}
+
+dev.off()
+
+```
+
+remove the long format data
+```{r}
+rm(OnPortal_long, TagTag_long, chem_combined_long)
+```
+
+
+#Merge the old and new data for export
+```{r}
+variable_order <- c("TIMESTAMP","pH","DOC","TOT-N","PO4-P","NH4-N","NO3-N","Cl","SO4-S","Br","Li","Be","B","Na","Mg","Al","Si","P","S","K","Ca","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","As","Se","Rb","Sr","Ag","Cd","In","Te","Cs","Ba","Tl","Pb","Bi")
+
+TagTag <- TagTag %>% 
+  select(-SampleID) %>%
+  mutate(`SO4-S` = as.character(round(as.numeric(`SO4-S`), 4))) %>%
+  select(all_of(variable_order)) %>%
+  mutate(across(-TIMESTAMP, ~replace(., is.na(.), NaN)))
+
+OnPortal <- OnPortal %>%
+  mutate(across(-1, as.character))%>%
+  select(all_of(variable_order))
+
+Stream_chemistry <- bind_rows(OnPortal, TagTag)
+
+Stream_chemistry <- Stream_chemistry %>% 
+mutate(TIMESTAMP = format(as.POSIXct(TIMESTAMP, format = "%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M"))
+```
+
+
+```{r}
+# Construct the filename
+filename <- paste0("FinalChemFiles/CHEM-S", StationName, "_", SamplingLocation, "_","until" ,EndYear, ".csv")
+
+# Export to CSV
+write.csv(Stream_chemistry, filename, row.names = FALSE, quote = FALSE)
+```
+
