@@ -5,10 +5,6 @@ date: "2025-10-01"
 output: html_document
 ---
 
-install.packages("usethis")  # if needed
-usethis::use_gitignore()
-usethis::use_git()
-
 load packages
 ```{r}
 library(tidyverse)
@@ -100,3 +96,4 @@ filename <- paste0("ProcessedData/Anions_", StationName, "_", StartYear,"_",EndY
 # Export to CSV
 write.csv(df, filename, row.names = FALSE, quote = FALSE)
 ```
+
