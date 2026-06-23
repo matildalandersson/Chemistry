@@ -1,0 +1,698 @@
+---
+title: "Asa Chemistry"
+author: "Matilda Andersson"
+date: "2026-04-21"
+output: html_document
+---
+
+Station specific code to deal with the unique formatting at the station level and the removal of any outliers specific to the station
+
+The way that this is written you are just adding the new files when you load data so for each new upload it's generating a whole new file using all the past data. The thing that you will notice is that in the figures there are many overlaping points with both data from the portal and new data plotted on top of each other (should be the same point). Only data that has been loaded/added for the first time doesn't have overlapping points (and the really old data that I don't have the raw data for). This shouldn't be a problem. 
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+#load data - 
+add to this when new data becomes avaliable 
+```{r}
+TagTag <- read_excel("TagTag/ASA/TagTag_Asa.xlsx")
+
+#Anions
+Anions_Asa_2020_2021 <- read_csv("ProcessedData/Anions_Asa_2020_2021.csv")
+Anions_Asa_2021_2022 <- read_csv("ProcessedData/Anions_Asa_2021_2022.csv")
+Anions_Asa_2022_2023 <- read_csv("ProcessedData/Anions_Asa_2022_2023.csv")
+Anions_Asa_2024_2024 <- read_csv("ProcessedData/Anions_Asa_2024_2024.csv")
+Anions_Asa_2024_2025 <- read_csv("ProcessedData/Anions_Asa_2024_2025.csv")
+
+#Cations
+Cations_Asa_2017_2022 <- read_csv("ProcessedData/Cations_Asa_2017_2022.csv")
+Cations_Asa_2022_2023 <- read_csv("ProcessedData/Cations_Asa_2022_2023.csv")
+Cations_Asa_2023_2024 <- read_csv("ProcessedData/Cations_Asa_2023_2024.csv")
+Cations_Asa_2024_2025 <- read_csv("ProcessedData/Cations_Asa_2024_2025.csv")
+
+#DOC and TOTN
+DOC_TOTN_Asa_2022_2022 <- read_csv("ProcessedData/DOC_TOTN_Asa_2022_2022.csv")
+DOC_TOTN_Asa_2023_2023 <- read_csv("ProcessedData/DOC_TOTN_Asa_2023_2023.csv")
+DOC_TOTN_Asa_2024_2024 <- read_csv("ProcessedData/DOC_TOTN_Asa_2024_2024.csv")
+DOC_TOTN_Asa_2025_2026 <- read_csv("ProcessedData/DOC_TOTN_Asa_2025_2026.csv")
+
+#Nitrogen and Phosphorous NP
+NP_Asa_2022_2022 <- read_csv("ProcessedData/NP_Asa_2022_2022.csv")
+NP_Asa_2023_2023 <- read_csv("ProcessedData/NP_Asa_2023_2023.csv")
+NP_Asa_2023_2024 <- read_csv("ProcessedData/NP_Asa_2023_2024.csv")
+NP_Asa_2024_2025 <- read_csv("ProcessedData/NP_Asa_2024_2025.csv")
+NP_Asa_2025_2025 <- read_csv("ProcessedData/NP_Asa_2025_2025.csv")
+
+#EC and pH
+EC_pH_Asa_2022_2025 <- read_csv("ProcessedData/EC_pH_Asa_2022_2025.csv")
+
+```
+
+```{r}
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "ASA" #STATION Abbreviation here
+LakeSamplingLocation <- "FER" #sampling code here
+EndYear <- 2025 #END YEAR HERE
+
+StreamSamplingLocation <- "MIN_OUT" #Just for the stream data preview - both location codes
+```
+
+convert LOD to 99999 and NaN to NA and convert everything to numeric 
+```{r}
+TagTag <- TagTag %>%
+  mutate(across(!any_of(c("TIMESTAMP", "SampleID")), as.numeric))
+
+df_names <- ls()[sapply(ls(), function(x) is.data.frame(get(x)))]
+df_names <- df_names[df_names != "TagTag"]
+
+for(df_name in df_names) {
+  assign(df_name, get(df_name) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), as.character)) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ if_else(. == "LOD", "99999", .))) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ suppressWarnings(as.numeric(.)))) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ if_else(is.nan(.), NA_real_, .)))
+  )
+}
+```
+
+#merge any overlapping data sets
+only distinct rows - if there is a copy paste error when the data is being compiled you could have two duplicate rows with the same data for the same date
+```{r}
+#NP
+NP_all <- bind_rows(mget(ls(pattern = "^NP"))) |> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^NP"), "NP_all"))
+
+#DOC
+DOC_TOTN_all <- bind_rows(mget(ls(pattern = "^DOC")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^DOC"), "DOC_TOTN_all"))
+
+#Anions
+Anions_all <- bind_rows(mget(ls(pattern = "^Anions")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^Anions"), "Anions_all"))
+
+#Cations
+Cations_all <- bind_rows(mget(ls(pattern = "^Cations")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^Cations"), "Cations_all"))
+
+```
+
+merge data - keep everything from TagTag, put NAs in the other locations
+```{r}
+TagTag <- TagTag %>%
+  left_join(DOC_TOTN_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(NP_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Anions_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Cations_all, by = "SampleID")
+
+#just for Asa that doesn't have the pH and EC in the same file as the TagTag
+TagTag <- TagTag %>%
+  left_join(EC_pH_Asa_2022_2025, by = "SampleID")
+
+rm(DOC_TOTN_all, NP_all, Anions_all, Cations_all, EC_pH_Asa_2022_2025)
+```
+
+#Lake
+##Data on Portal
+Upload data - you need to download the most recent file on the portal for this
+```{r}
+skip_lines <- which(str_detect(readLines("OnPortal/SITES_CHEM-L_ASA_FER_20170622-20251208_L2_irregular.csv"), "####"))[1]
+OnPortal <- read_csv("OnPortal/SITES_CHEM-L_ASA_FER_20170622-20251208_L2_irregular.csv", skip = skip_lines)
+
+#change LOD to error code 99999 and NaN to NA and convert everything to numeric 
+OnPortal <- OnPortal %>%
+  mutate(across(!any_of("TIMESTAMP"), as.character)) %>%
+  mutate(across(!any_of("TIMESTAMP"), ~ if_else(. == "LOD", "99999", .))) %>%
+  mutate(across(!any_of("TIMESTAMP"), ~ suppressWarnings(as.numeric(.)))) %>%
+  mutate(across(!any_of("TIMESTAMP"), ~ if_else(is.nan(.), NA_real_, .)))
+```
+
+##Data cleaning
+**Just Asa - lake**
+```{r}
+#drop the cations 2017-08-19 outliers across the board 
+keep_prefixes <- c("EC", "pH", "TW", "DOC", "TOT-N", "PO4-P", "NH4-N", "NO3-N", "F", "Cl", "Br", "SO4-S")
+
+# Identify columns to nullify (excluding TIMESTAMP)
+nullify_cols <- names(OnPortal)[!grepl(paste0("^(", paste(keep_prefixes, collapse = "|"), ")"), names(OnPortal))]
+nullify_cols <- nullify_cols[nullify_cols != "TIMESTAMP"]
+
+# Set values to NA for the target timestamp
+OnPortal <- OnPortal %>%
+  mutate(across(all_of(nullify_cols), ~ if_else(TIMESTAMP == as.POSIXct("2017-08-09 12:00:00", tz = "UTC"), NA_real_, .)))
+
+
+#drop the SO4-S that is currently on the Portal between 2020-10-12 12:00:00 and 2022-09-05 12:00:00 -- this isn't needed anymore -- was for fixing bad data that was fixed in 2026
+#so4_cols <- names(OnPortal)[grepl("^SO4-S", names(OnPortal))]
+# OnPortal <- OnPortal %>%
+#   mutate(across(all_of(so4_cols), ~ if_else(
+#     TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
+#     TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
+#     NA_real_, .)))
+
+#remove anions for 2018-04-23 12:00:00
+anions <- names(OnPortal)[grepl("^(Cl|SO4-S)", names(OnPortal))]
+
+OnPortal <- OnPortal %>%
+  mutate(across(all_of(anions), ~ if_else(
+    TIMESTAMP == as.POSIXct("2018-04-23 12:00:00", tz = "UTC"),
+    NA_real_, .)))
+```
+
+##Reformat portal data
+```{r}
+#Pivot to long format
+OnPortal_long <- OnPortal |> 
+  pivot_longer(
+    cols = -c(TIMESTAMP), 
+    names_to = "Variable", 
+    values_to = "Value")
+
+#for locations with depth in the header
+OnPortal_long <- OnPortal_long %>%
+  mutate(D_WATER = as.numeric(str_extract(Variable, "-[0-9.]+")),
+         Variable = str_remove(Variable, "_-[0-9.]+m?"))
+OnPortal_long <- OnPortal_long %>%
+  relocate(D_WATER, .after = Variable)
+
+#Portal data to merge with the new data (need to keep the 99999 error code)
+OnPortal_ToMerge <- OnPortal_long
+
+#add a column saying that this is the data from the portal
+OnPortal_long_ToPreview <-  OnPortal_long %>% 
+  mutate(dataset = "OnPortal")
+
+OnPortal_long_ToPreview <- OnPortal_long_ToPreview %>%
+  mutate(Value = if_else(Value == 99999, NA_real_, Value))
+
+#drop NAs
+OnPortal_long_ToPreview <- OnPortal_long_ToPreview %>%
+  drop_na(Value)
+```
+
+##Reformat new data for preview
+filter out just the lake data based on the SAMPLE ID 
+For Asa 31 is lake depth 0.5m 
+        32 is lake depth 9m
+```{r}
+# add a depth column
+NewData_long <- TagTag |> 
+  filter(str_ends(SampleID, "31|32")) |> 
+  mutate(D_WATER = case_when(
+    str_ends(SampleID, "31") ~ -0.5,
+    str_ends(SampleID, "32") ~ -9,
+    TRUE ~ NA_real_))
+
+NewData_long <- NewData_long |> 
+  select(-SampleID)
+
+NewData_long <- NewData_long |> 
+  mutate(TIMESTAMP = as.POSIXct(paste(format(TIMESTAMP, "%Y-%m-%d"), "12:00:00"), format = "%Y-%m-%d %H:%M:%S"))
+
+#Pivot to long format
+NewData_long <- NewData_long |> 
+  pivot_longer(
+    cols = -c(TIMESTAMP, D_WATER), 
+    names_to = "Variable", 
+    values_to = "Value")
+
+#Portal data to merge with the new data (need to keep the 99999 error code)
+NewData_ToMerge <- NewData_long
+
+#add a column saying that this is the new data
+NewData_long_ToPreview <-  NewData_long %>% 
+  mutate(dataset = "NewData")
+
+NewData_long_ToPreview <- NewData_long_ToPreview %>%
+  relocate(D_WATER, .after = Variable)
+
+NewData_long_ToPreview <- NewData_long_ToPreview %>%
+  mutate(Value = if_else(Value == 99999, NA_real_, Value))
+
+NewData_long_ToPreview <- NewData_long_ToPreview %>%
+  drop_na(Value)
+```
+
+##Preview all data
+```{r}
+#combine the long formats of the old and new data here
+chem_combined_long <- bind_rows(OnPortal_long_ToPreview, NewData_long_ToPreview)
+
+library(ggforce) #for the qc plots
+
+pdf(paste0("QC_plots/", StationName, "_", LakeSamplingLocation, "_QC_plots.pdf"), width = 11, height = 8.5)
+
+n_pages <- nlevels(factor(chem_combined_long$Variable)) %/% 6 + 1 #if it divides evenly you don't need the plus one and it will throw and error but the error only means there is an extra page, which is fine. 
+
+for (i in seq_len(n_pages)) {
+
+p <- ggplot(chem_combined_long,
+    aes(TIMESTAMP, Value, 
+        color = factor(D_WATER), 
+        shape = dataset)) +
+    geom_line(aes(group = interaction(dataset, D_WATER)), linewidth = 0.3) +
+    geom_point(size = 1) +
+    facet_wrap_paginate(
+      ~ Variable,
+      scales = "free_y",
+      ncol = 2,
+      nrow = 3,
+      page = i) +
+    scale_color_manual(
+      values = c(
+        "-0.5" = "grey60",
+        "-9" = "black"),
+      name = "Depth (m)") +
+    scale_shape_manual(
+      values = c(
+        "OnPortal" = 4,   # x
+        "NewData" = 21),  # closed dot=16
+      name = "Dataset") +
+    labs(
+      title = paste("QC plots — page", i),
+      x = "Date",
+      y = "Value") +
+    theme_light()
+  print(p)   # one page per iteration
+}
+
+dev.off()
+
+```
+
+##Format Lake Data for upload
+```{r}
+OnPortal_ToMerge <- OnPortal_ToMerge |> 
+  drop_na(Value) |> 
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "UTC"))
+
+NewData_ToMerge <- NewData_ToMerge |> 
+  mutate(TIMESTAMP = as.POSIXct(paste(format(TIMESTAMP, "%Y-%m-%d"), "12:00:00"), format = "%Y-%m-%d %H:%M:%S"))
+
+NewData_ToMerge <- NewData_ToMerge |> 
+  drop_na(Value) |> 
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "UTC"))
+
+#distinct() keeps the first occurrence, so values from OnPortal_ToMerge are prioritized since it's listed first in bind_rows().
+#If you want NewData_ToMerge to take priority, reverse the order:
+LakeChemistry <- bind_rows(OnPortal_ToMerge, NewData_ToMerge) %>%
+  distinct(TIMESTAMP, Variable, D_WATER, .keep_all = TRUE)
+
+LakeChemistry <- LakeChemistry |> 
+  pivot_wider(
+    names_from = c(Variable, D_WATER),
+    values_from = Value,
+    names_glue = "{Variable}_{D_WATER}m"
+  )
+
+#this is what is in the file that is currently on the portal 
+variable_order <- c("TIMESTAMP","EC_-0.5m","EC_-9m","pH_-0.5m","pH_-9m","TW_pH_-0.5m","TW_pH_-9m","DOC_-0.5m","DOC_-9m","TOT-N_-0.5m","TOT-N_-9m","PO4-P_-0.5m","PO4-P_-9m","NH4-N_-0.5m","NH4-N_-9m","NO3-N_-0.5m","NO3-N_-9m","F_-0.5m","F_-9m","Cl_-0.5m","Cl_-9m","Br_-0.5m","Br_-9m","SO4-S_-0.5m","SO4-S_-9m","Li_-0.5m","Li_-9m","Be_-0.5m","Be_-9m","B_-0.5m","B_-9m","Na_-0.5m","Na_-9m","Mg_-0.5m","Mg_-9m","Al_-0.5m","Al_-9m","Si_-0.5m","Si_-9m","P_-0.5m","P_-9m","S_-0.5m","S_-9m","K_-0.5m","K_-9m","Ca_-0.5m","Ca_-9m","V_-0.5m","V_-9m","Cr_-0.5m","Cr_-9m","Mn_-0.5m","Mn_-9m","Fe_-0.5m","Fe_-9m","Co_-0.5m","Co_-9m","Ni_-0.5m","Ni_-9m","Cu_-0.5m","Cu_-9m","Zn_-0.5m","Zn_-9m","Ga_-0.5m","Ga_-9m","As_-0.5m","As_-9m","Se_-0.5m","Se_-9m","Rb_-0.5m","Rb_-9m","Sr_-0.5m","Sr_-9m","Ag_-0.5m","Ag_-9m","Cd_-0.5m","Cd_-9m","Te_-0.5m","Te_-9m","Cs_-0.5m","Cs_-9m","Ba_-0.5m","Ba_-9m","Tl_-0.5m","Tl_-9m","Pb_-0.5m","Pb_-9m","Bi_-0.5m","Bi_-9m")
+
+LakeChemistry <- LakeChemistry |>  
+  select(all_of(variable_order)) |>
+  mutate(across(-TIMESTAMP, ~ suppressWarnings(round(as.numeric(.), 4))),
+         across(-TIMESTAMP, ~ ifelse(. == 99999, "LOD", .)),
+         across(-TIMESTAMP, ~ ifelse(is.na(.), NaN, .)))
+
+LakeChemistry <- LakeChemistry %>% 
+mutate(TIMESTAMP = format(as.POSIXct(TIMESTAMP, format = "%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M"))
+```
+
+##Export Lake data for upload
+```{r}
+# Construct the filename
+filename <- paste0("FinalChemFiles/CHEM-L_", StationName, "_", LakeSamplingLocation, "_","until" ,EndYear, ".csv")
+
+#Convert all to character so that you can maintain the NaN
+LakeChemistry_export <- LakeChemistry %>%
+  mutate(across(-TIMESTAMP, ~ ifelse(is.nan(.), "NaN", as.character(.))))
+
+# Export to CSV
+write.csv(LakeChemistry_export, filename, row.names = FALSE, quote = FALSE)
+```
+
+##Clear lake files
+```{r}
+rm(chem_combined_long, LakeChemistry, LakeChemistry_export,
+   OnPortal, OnPortal_long, OnPortal_long_ToPreview, OnPortal_ToMerge,
+   NewData_long, NewData_long_ToPreview, NewData_ToMerge)
+```
+
+
+#Stream
+##Data on Portal
+Upload data - you need to download the most recent file on the portal for this
+```{r}
+#Outlet
+skip_lines_OUT <- which(str_detect(readLines("OnPortal/SITES_CHEM-S_ASA_OUT_20170622-20220905_L2_irregular.csv"), "####"))[1]
+OnPortal_OUT <- read_csv("OnPortal/SITES_CHEM-S_ASA_OUT_20170622-20220905_L2_irregular.csv", skip = skip_lines_OUT)
+
+#change LOD to error code 99999 and NaN to NA and convert everything to numeric 
+OnPortal_OUT <- OnPortal_OUT |> 
+  mutate(across(!any_of("TIMESTAMP"), as.character)) %>%
+  mutate(across(!any_of("TIMESTAMP"), ~ if_else(. == "LOD", "99999", .))) |> 
+  mutate(across(!any_of("TIMESTAMP"), ~ suppressWarnings(as.numeric(.)))) |> 
+  mutate(across(!any_of("TIMESTAMP"), ~ if_else(is.nan(.), NA_real_, .)))
+
+#Main Inlet
+skip_lines_MIN <- which(str_detect(readLines("OnPortal/SITES_CHEM-S_ASA_MIN_20170622-20220905_L2_irregular.csv"), "####"))[1]
+OnPortal_MIN <- read_csv("OnPortal/SITES_CHEM-S_ASA_MIN_20170622-20220905_L2_irregular.csv", skip = skip_lines_MIN)
+
+#change LOD to error code 99999 and NaN to NA and convert everything to numeric 
+OnPortal_MIN <- OnPortal_MIN |> 
+  mutate(across(!any_of("TIMESTAMP"), as.character)) %>%
+  mutate(across(!any_of("TIMESTAMP"), ~ if_else(. == "LOD", "99999", .))) |> 
+  mutate(across(!any_of("TIMESTAMP"), ~ suppressWarnings(as.numeric(.)))) |> 
+  mutate(across(!any_of("TIMESTAMP"), ~ if_else(is.nan(.), NA_real_, .)))
+
+```
+
+##Data cleaning - old data
+*Specific cleaning for Asa streams*
+Should this outlier be removed? Other points with the same timestamp aren't weird
+```{r}
+#drop the SO4-S that is currently on the Portal between 2020-10-12 12:00:00 and 2022-09-05 12:00:00 - this is the old stat Christoffer didn't convert
+OnPortal_OUT <- OnPortal_OUT |> 
+  mutate(`SO4-S` = if_else(
+    TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
+    TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
+    NA_real_, `SO4-S`))
+
+OnPortal_MIN <- OnPortal_MIN |> 
+  mutate(`SO4-S` = if_else(
+    TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
+    TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
+    NA_real_, `SO4-S`))
+
+#remove Ni outlier - OUT ? 2021-08-09 12:00:00
+# OnPortal_OUT <- OnPortal_OUT |> 
+#   mutate(`Ni` = if_else(
+#     TIMESTAMP == as.POSIXct("2021-08-09 12:00:00", tz = "UTC"),
+#     NA_real_, `Ni`))
+```
+
+##Reformat portal data
+```{r}
+#Pivot to long format
+##Outlet data
+OnPortal_OUT_long <- OnPortal_OUT |> 
+  pivot_longer(
+    cols = -c(TIMESTAMP), 
+    names_to = "Variable", 
+    values_to = "Value")
+
+#add the sampling point
+OnPortal_OUT_long <- OnPortal_OUT_long %>%
+  mutate(SamplingPoint = "OUT")
+
+#Portal data to merge with the new data (need to keep the 99999 error code)
+OnPortal_OUT_ToMerge <- OnPortal_OUT_long
+
+#add a column saying that this is the data from the portal
+OnPortal_OUT_long_ToPreview <-  OnPortal_OUT_long %>% 
+  mutate(dataset = "OnPortal")
+
+OnPortal_OUT_long_ToPreview <- OnPortal_OUT_long_ToPreview %>%
+  mutate(Value = if_else(Value == 99999, NA_real_, Value))
+
+#drop NAs
+OnPortal_OUT_long_ToPreview <- OnPortal_OUT_long_ToPreview %>%
+  drop_na(Value)
+
+#Inlet
+OnPortal_MIN_long <- OnPortal_MIN |> 
+  pivot_longer(
+    cols = -c(TIMESTAMP), 
+    names_to = "Variable", 
+    values_to = "Value")
+
+#add the sampling point
+OnPortal_MIN_long <- OnPortal_MIN_long %>%
+  mutate(SamplingPoint = "MIN")
+
+#Portal data to merge with the new data (need to keep the 99999 error code)
+OnPortal_MIN_ToMerge <- OnPortal_MIN_long
+
+#add a column saying that this is the data from the portal
+OnPortal_MIN_long_ToPreview <-  OnPortal_MIN_long %>% 
+  mutate(dataset = "OnPortal")
+
+OnPortal_MIN_long_ToPreview <- OnPortal_MIN_long_ToPreview %>%
+  mutate(Value = if_else(Value == 99999, NA_real_, Value))
+
+#drop NAs
+OnPortal_MIN_long_ToPreview <- OnPortal_MIN_long_ToPreview %>%
+  drop_na(Value)
+
+```
+
+##Select stream data
+filter out just the strea data based on the SAMPLE ID 
+For Asa 11 is stream inlet
+        21 is stream outlet
+```{r}
+# add a depth column
+NewData_long <- TagTag |> 
+  filter(str_ends(SampleID, "11|21")) |> 
+  mutate(SamplingPoint = case_when(
+    str_ends(SampleID, "11") ~ "MIN",
+    str_ends(SampleID, "21") ~ "OUT",
+    TRUE ~ NA_character_))
+
+NewData_long <- NewData_long |> 
+  select(-SampleID)
+
+NewData_long <- NewData_long |> 
+  mutate(TIMESTAMP = as.POSIXct(paste(format(TIMESTAMP, "%Y-%m-%d"), "12:00:00"), format = "%Y-%m-%d %H:%M:%S"))
+```
+
+##Data cleaning - new data
+*Just Asa Streams* 
+Should this outlier be removed? Other points with the same timestamp aren't weird
+```{r}
+# NewData_long <- NewData_long |>
+#   mutate(`Ni` = if_else(
+#     TIMESTAMP == as.POSIXct("2021-08-09 12:00:00") &
+#     SamplingPoint == "OUT", 
+#     NA_real_, `Ni`))
+```
+
+##Reformat new data for preview
+```{r}
+#Pivot to long format
+NewData_long <- NewData_long |> 
+  pivot_longer(
+    cols = -c(TIMESTAMP, SamplingPoint), 
+    names_to = "Variable", 
+    values_to = "Value")
+
+#Portal data to merge with the new data (need to keep the 99999 error code)
+NewData_ToMerge <- NewData_long
+
+#add a column saying that this is the new data
+NewData_long_ToPreview <-  NewData_long %>% 
+  mutate(dataset = "NewData")
+
+NewData_long_ToPreview <- NewData_long_ToPreview %>%
+  relocate(SamplingPoint, .after = Value)
+
+NewData_long_ToPreview <- NewData_long_ToPreview %>%
+  mutate(Value = if_else(Value == 99999, NA_real_, Value))
+
+NewData_long_ToPreview <- NewData_long_ToPreview %>%
+  drop_na(Value)
+```
+
+##Preview all data
+```{r}
+#combine the long formats of the old and new data here
+stream_chem_combined_long <- bind_rows(OnPortal_MIN_long_ToPreview, OnPortal_OUT_long_ToPreview, NewData_long_ToPreview)
+
+library(ggforce) #for the qc plots
+
+pdf(paste0("QC_plots/", StationName, "_", StreamSamplingLocation, "_QC_plots.pdf"), width = 11, height = 8.5)
+
+n_pages <- nlevels(factor(stream_chem_combined_long$Variable)) %/% 6 + 1 #if it divides evenly you don't need the plus one and it will throw and error but the error only means there is an extra page, which is fine. 
+
+for (i in seq_len(n_pages)) {
+
+p <- ggplot(stream_chem_combined_long,
+    aes(TIMESTAMP, Value, 
+        color = factor(SamplingPoint), 
+        shape = dataset)) +
+    geom_line(aes(group = interaction(dataset, SamplingPoint)), linewidth = 0.3) +
+    geom_point(size = 1) +
+    facet_wrap_paginate(
+      ~ Variable,
+      scales = "free_y",
+      ncol = 2,
+      nrow = 3,
+      page = i) +
+    scale_color_manual(
+      values = c(
+        "MIN" = "grey60",
+        "OUT" = "black"),
+      name = "Depth (m)") +
+    scale_shape_manual(
+      values = c(
+        "OnPortal" = 4,   # x
+        "NewData" = 16),  # closed dot
+      name = "Dataset") +
+    labs(
+      title = paste("QC plots — page", i),
+      x = "Date",
+      y = "Value") +
+    theme_light()
+  print(p)   # one page per iteration
+}
+
+dev.off()
+
+```
+
+Drop the dfs used to preview the data
+```{r}
+rm(OnPortal_MIN, OnPortal_MIN_long_ToPreview, OnPortal_MIN_long, 
+   OnPortal_OUT, OnPortal_OUT_long_ToPreview, OnPortal_OUT_long, 
+   NewData_long_ToPreview, NewData_long, 
+   stream_chem_combined_long)
+```
+
+
+##Format and print Stream Data for upload
+###OUT
+```{r}
+# Specify sampling point here
+sampling_point <- "OUT"
+
+#You are dropping the NAs here because when you reformat it to wide you will replace the NAs with NaN
+OnPortal_SP_ToMerge <- get(paste0("OnPortal_", sampling_point, "_ToMerge")) |> 
+  drop_na(Value) |> 
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "UTC")) |> 
+  select(-SamplingPoint)
+
+#specify which new data
+NewData_SP_ToMerge <- NewData_ToMerge |> 
+  filter(SamplingPoint == sampling_point)|> 
+  select(-SamplingPoint)
+NewData_SP_ToMerge <- NewData_SP_ToMerge |> 
+  mutate(TIMESTAMP = as.POSIXct(paste(format(TIMESTAMP, "%Y-%m-%d"), "12:00:00"), format = "%Y-%m-%d %H:%M:%S"))
+NewData_SP_ToMerge <- NewData_SP_ToMerge |> 
+  drop_na(Value) |> 
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "UTC"))
+
+#distinct() keeps the first occurrence, so values from OnPortal_SP_ToMerge are prioritized since it's listed first in bind_rows().
+#If you want NewData_SP_ToMerge to take priority, reverse the order:
+StreamChemistry_SP <- bind_rows(OnPortal_SP_ToMerge, NewData_SP_ToMerge) %>%
+  distinct(TIMESTAMP, Variable, .keep_all = TRUE)
+StreamChemistry_SP <- StreamChemistry_SP |> 
+  pivot_wider(
+    names_from = c(Variable),
+    values_from = Value)
+
+#this is what is in the file that is currently on the portal 
+variable_order <- c("TIMESTAMP","EC","pH","TW_pH","DOC","TOT-N","PO4-P","NH4-N","NO3-N","F","Cl","Br","SO4-S","Li","Be","B","Na","Mg",
+                    "Al","Si","P","S","K","Ca","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","As","Se","Rb","Sr","Ag","Cd","Te","Cs","Ba",
+                    "Tl","Pb","Bi")
+StreamChemistry_SP <- StreamChemistry_SP |>  
+  select(all_of(variable_order)) |>
+  mutate(across(-TIMESTAMP, ~ suppressWarnings(round(as.numeric(.), 4))),
+         across(-TIMESTAMP, ~ ifelse(. == 99999, "LOD", .)),
+         across(-TIMESTAMP, ~ ifelse(is.na(.), NaN, .)))
+StreamChemistry_SP <- StreamChemistry_SP %>% 
+  mutate(TIMESTAMP = format(as.POSIXct(TIMESTAMP, format = "%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M"))
+
+##Export##
+# Construct the filename
+filename <- paste0("FinalChemFiles/CHEM-S_", StationName, "_", sampling_point, "_","until" ,EndYear, ".csv")
+
+#Convert all to character so that you can maintain the NaN
+StreamChemistry_export <- StreamChemistry_SP %>%
+  mutate(across(-TIMESTAMP, ~ ifelse(is.nan(.), "NaN", as.character(.))))
+
+# Export to CSV
+write.csv(StreamChemistry_export, filename, row.names = FALSE, quote = FALSE)
+```
+
+drop dfs
+```{r}
+rm(OnPortal_OUT_ToMerge, OnPortal_SP_ToMerge, 
+   NewData_SP_ToMerge,
+   StreamChemistry_SP, filename, StreamChemistry_export)
+```
+
+
+###MIN
+```{r}
+# Specify sampling point here
+sampling_point <- "MIN"
+
+#You are dropping the NAs here because when you reformat it to wide you will replace the NAs with NaN
+OnPortal_SP_ToMerge <- get(paste0("OnPortal_", sampling_point, "_ToMerge")) |> 
+  drop_na(Value) |> 
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "UTC")) |> 
+  select(-SamplingPoint)
+
+#specify which new data
+NewData_SP_ToMerge <- NewData_ToMerge |> 
+  filter(SamplingPoint == sampling_point)|> 
+  select(-SamplingPoint)
+NewData_SP_ToMerge <- NewData_SP_ToMerge |> 
+  mutate(TIMESTAMP = as.POSIXct(paste(format(TIMESTAMP, "%Y-%m-%d"), "12:00:00"), format = "%Y-%m-%d %H:%M:%S"))
+NewData_SP_ToMerge <- NewData_SP_ToMerge |> 
+  drop_na(Value) |> 
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "UTC"))
+
+#distinct() keeps the first occurrence, so values from OnPortal_SP_ToMerge are prioritized since it's listed first in bind_rows().
+#If you want NewData_SP_ToMerge to take priority, reverse the order:
+StreamChemistry_SP <- bind_rows(OnPortal_SP_ToMerge, NewData_SP_ToMerge) %>%
+  distinct(TIMESTAMP, Variable, .keep_all = TRUE)
+StreamChemistry_SP <- StreamChemistry_SP |> 
+  pivot_wider(
+    names_from = c(Variable),
+    values_from = Value)
+
+#this is what is in the file that is currently on the portal 
+variable_order <- c("TIMESTAMP","EC","pH","TW_pH","DOC","TOT-N","PO4-P","NH4-N","NO3-N","F","Cl","Br","SO4-S","Li","Be","B","Na","Mg",
+                    "Al","Si","P","S","K","Ca","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","As","Se","Rb","Sr","Ag","Cd","Te","Cs","Ba",
+                    "Tl","Pb","Bi")
+StreamChemistry_SP <- StreamChemistry_SP |>  
+  select(all_of(variable_order)) |>
+  mutate(across(-TIMESTAMP, ~ suppressWarnings(round(as.numeric(.), 4))),
+         across(-TIMESTAMP, ~ ifelse(. == 99999, "LOD", .)),
+         across(-TIMESTAMP, ~ ifelse(is.na(.), NaN, .)))
+StreamChemistry_SP <- StreamChemistry_SP %>% 
+  mutate(TIMESTAMP = format(as.POSIXct(TIMESTAMP, format = "%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M"))
+
+##Export##
+# Construct the filename
+filename <- paste0("FinalChemFiles/CHEM-S_", StationName, "_", sampling_point, "_","until" ,EndYear, ".csv")
+
+#Convert all to character so that you can maintain the NaN
+StreamChemistry_export <- StreamChemistry_SP %>%
+  mutate(across(-TIMESTAMP, ~ ifelse(is.nan(.), "NaN", as.character(.))))
+
+# Export to CSV
+write.csv(StreamChemistry_export, filename, row.names = FALSE, quote = FALSE)
+```
+
+drop dfs
+```{r}
+rm(OnPortal_MIN_ToMerge, OnPortal_SP_ToMerge, 
+   NewData_SP_ToMerge,
+   StreamChemistry_SP, filename, StreamChemistry_export)
+```
+
+
