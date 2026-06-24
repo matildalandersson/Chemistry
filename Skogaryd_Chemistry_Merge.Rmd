@@ -1,0 +1,139 @@
+---
+title: "Skogaryd_Chemistry_Merge"
+author: "Matilda Andersson"
+date: "2026-06-24"
+output: html_document
+---
+
+NOTE SRS is a bit annoying because they have multiple datasets for past years due to shifts in the method and/or lab
+
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+load data - this now just uploads the entire Abisko folder with all the data
+IMPORTANT - it's important that the file names follow the naming conventions so that everything uploaded makes sense
+```{r}
+list.files(path = "ProcessedData/Skogaryd", 
+           pattern = "\\.csv$", 
+           full.names = TRUE) %>%
+  set_names(~ basename(.) %>% str_remove("\\.csv$")) %>%
+  map(read_csv) %>%
+  list2env(envir = .GlobalEnv)
+
+#you might need to merge multiple TagTag files and rename
+TagTag <- TagTag_Skogaryd_2024
+
+rm(TagTag_Skogaryd_2024)
+```
+
+```{r}
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "SRC" #STATION Abbreviation here
+LakeSamplingLocation <- "ERS" #sampling code here
+EndYear <- 2025 #END YEAR HERE
+```
+
+convert LOD to 99999 and NaN to NA and convert everything to numeric 
+```{r}
+TagTag <- TagTag %>%
+  mutate(across(!any_of(c("TIMESTAMP", "SampleID")), as.numeric))
+
+#this excluded TagTag
+df_names <- ls()[sapply(ls(), function(x) is.data.frame(get(x)))]
+df_names <- df_names[df_names != "TagTag"]
+
+for(df_name in df_names) {
+  assign(df_name, get(df_name) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), as.character)) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ if_else(. == "LOD", "99999", .))) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ suppressWarnings(as.numeric(.)))) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ if_else(is.nan(.), NA_real_, .)))
+  )
+}
+```
+
+merge any overlapping data sets
+```{r}
+#NP
+NP_all <- bind_rows(mget(ls(pattern = "^NP"))) |> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^NP"), "NP_all"))
+
+#DOC
+DOC_TOTN_all <- bind_rows(mget(ls(pattern = "^DOC")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^DOC"), "DOC_TOTN_all"))
+
+#Anions
+Anions_all <- bind_rows(mget(ls(pattern = "^Anions")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^Anions"), "Anions_all"))
+
+#Cations
+Cations_all <- bind_rows(mget(ls(pattern = "^Cations")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^Cations"), "Cations_all"))
+
+```
+
+merge data - keep everything from TagTag leave NAs in the other locations
+```{r}
+TagTag <- TagTag %>%
+  left_join(DOC_TOTN_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(NP_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Anions_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Cations_all, by = "SampleID")
+
+rm(DOC_TOTN_all, NP_all, Anions_all, Cations_all)
+```
+
+#Lake
+##Data on Portal
+Upload data - you need to download the most recent file on the portal for this
+```{r}
+skip_lines <- which(str_detect(readLines("OnPortal/SITES_CHE-L_SRC_ERS_20160510-20170328_L2_irregular.csv"), "####"))[1]
+OnPortal_till2017 <- read_csv("OnPortal/SITES_CHE-L_SRC_ERS_20160510-20170328_L2_irregular.csv", skip = skip_lines)
+
+skip_lines <- which(str_detect(readLines("OnPortal/SITES_CHE-L_SRC_ERS_20170515-20191112_L2_irregular.csv"), "####"))[1]
+OnPortal_till2019 <- read_csv("OnPortal/SITES_CHE-L_SRC_ERS_20170515-20191112_L2_irregular.csv", skip = skip_lines)
+
+skip_lines <- which(str_detect(readLines("OnPortal/SITES_CHE-L_SRC_ERS_20191218-20200611_L2_irregular.csv"), "####"))[1]
+OnPortal_till2020 <- read_csv("OnPortal/SITES_CHE-L_SRC_ERS_20191218-20200611_L2_irregular.csv", skip = skip_lines)
+
+skip_lines <- which(str_detect(readLines("OnPortal/SITES_CHE-L_SRC_ERS_20200622-20221019_L2_irregular.csv"), "####"))[1]
+OnPortal_till2022 <- read_csv("OnPortal/SITES_CHE-L_SRC_ERS_20200622-20221019_L2_irregular.csv", skip = skip_lines)
+
+#change LOD to error code 99999 and NaN to NA and convert everything to numeric -- you need to do this before rbind because it wont join the columns if they aren't the same type
+#unlike for the other stations that only have 1 file for lake chemistry, this is a loop so that it can be applied to all the dfs
+clean_df <- function(df) {
+  df %>%
+    mutate(across(!any_of("TIMESTAMP"), as.character)) %>%
+    mutate(across(!any_of("TIMESTAMP"), ~ if_else(. == "LOD", "99999", .))) %>%
+    mutate(across(!any_of("TIMESTAMP"), ~ suppressWarnings(as.numeric(.)))) %>%
+    mutate(across(!any_of("TIMESTAMP"), ~ if_else(is.nan(.), NA_real_, .)))
+}
+
+# Apply to all four and overwrite originals
+list("OnPortal_till2017", "OnPortal_till2019", "OnPortal_till2020", "OnPortal_till2022") %>%
+  walk(~ assign(.x, clean_df(get(.x)), envir = .GlobalEnv))
+
+#Merge all the old chemistry data
+OnPortal <- bind_rows(OnPortal_till2017, OnPortal_till2019, OnPortal_till2020, OnPortal_till2022)
+
+rm(OnPortal_till2017, OnPortal_till2019, OnPortal_till2020, OnPortal_till2022)
+```
+
+```{r}
+
+```
+
