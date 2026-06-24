@@ -56,8 +56,6 @@ EC_pH_Asa_2022_2025 <- read_csv("ProcessedData/EC_pH_Asa_2022_2025.csv")
 StationName <- "ASA" #STATION Abbreviation here
 LakeSamplingLocation <- "FER" #sampling code here
 EndYear <- 2025 #END YEAR HERE
-
-StreamSamplingLocation <- "MIN_OUT" #Just for the stream data preview - both location codes
 ```
 
 convert LOD to 99999 and NaN to NA and convert everything to numeric 
@@ -348,16 +346,23 @@ write.csv(LakeChemistry_export, filename, row.names = FALSE, quote = FALSE)
 rm(chem_combined_long, LakeChemistry, LakeChemistry_export,
    OnPortal, OnPortal_long, OnPortal_long_ToPreview, OnPortal_ToMerge,
    NewData_long, NewData_long_ToPreview, NewData_ToMerge)
+
+rm(LakeSamplingLocation, filename, df_names, df_name)
 ```
 
 
 #Stream
+If you add a lot of additional stream sampling points you might want to split this out and do one preview by location -- right now we are going to keep them together
+```{r}
+StreamSamplingLocation <- "STREAMS"
+```
+
 ##Data on Portal
 Upload data - you need to download the most recent file on the portal for this
 ```{r}
 #Outlet
-skip_lines_OUT <- which(str_detect(readLines("OnPortal/SITES_CHEM-S_ASA_OUT_20170622-20220905_L2_irregular.csv"), "####"))[1]
-OnPortal_OUT <- read_csv("OnPortal/SITES_CHEM-S_ASA_OUT_20170622-20220905_L2_irregular.csv", skip = skip_lines_OUT)
+skip_lines_OUT <- which(str_detect(readLines("OnPortal/SITES_CHEM-S_ASA_OUT_20170622-20251208_L2_irregular.csv"), "####"))[1]
+OnPortal_OUT <- read_csv("OnPortal/SITES_CHEM-S_ASA_OUT_20170622-20251208_L2_irregular.csv", skip = skip_lines_OUT)
 
 #change LOD to error code 99999 and NaN to NA and convert everything to numeric 
 OnPortal_OUT <- OnPortal_OUT |> 
@@ -367,8 +372,8 @@ OnPortal_OUT <- OnPortal_OUT |>
   mutate(across(!any_of("TIMESTAMP"), ~ if_else(is.nan(.), NA_real_, .)))
 
 #Main Inlet
-skip_lines_MIN <- which(str_detect(readLines("OnPortal/SITES_CHEM-S_ASA_MIN_20170622-20220905_L2_irregular.csv"), "####"))[1]
-OnPortal_MIN <- read_csv("OnPortal/SITES_CHEM-S_ASA_MIN_20170622-20220905_L2_irregular.csv", skip = skip_lines_MIN)
+skip_lines_MIN <- which(str_detect(readLines("OnPortal/SITES_CHEM-S_ASA_MIN_20170622-20251208_L2_irregular.csv"), "####"))[1]
+OnPortal_MIN <- read_csv("OnPortal/SITES_CHEM-S_ASA_MIN_20170622-20251208_L2_irregular.csv", skip = skip_lines_MIN)
 
 #change LOD to error code 99999 and NaN to NA and convert everything to numeric 
 OnPortal_MIN <- OnPortal_MIN |> 
@@ -381,21 +386,22 @@ OnPortal_MIN <- OnPortal_MIN |>
 
 ##Data cleaning - old data
 *Specific cleaning for Asa streams*
-Should this outlier be removed? Other points with the same timestamp aren't weird
 ```{r}
+#This is no longer needed -- was done during the 2026 update to deal with old incorrect data on the portal
 #drop the SO4-S that is currently on the Portal between 2020-10-12 12:00:00 and 2022-09-05 12:00:00 - this is the old stat Christoffer didn't convert
-OnPortal_OUT <- OnPortal_OUT |> 
-  mutate(`SO4-S` = if_else(
-    TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
-    TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
-    NA_real_, `SO4-S`))
+# OnPortal_OUT <- OnPortal_OUT |> 
+#   mutate(`SO4-S` = if_else(
+#     TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
+#     TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
+#     NA_real_, `SO4-S`))
+# OnPortal_MIN <- OnPortal_MIN |> 
+#   mutate(`SO4-S` = if_else(
+#     TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
+#     TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
+#     NA_real_, `SO4-S`))
 
-OnPortal_MIN <- OnPortal_MIN |> 
-  mutate(`SO4-S` = if_else(
-    TIMESTAMP >= as.POSIXct("2020-10-12 12:00:00", tz = "UTC") & 
-    TIMESTAMP <= as.POSIXct("2022-09-05 12:00:00", tz = "UTC"), 
-    NA_real_, `SO4-S`))
 
+#Should this outlier be removed? Other points with the same timestamp aren't weird
 #remove Ni outlier - OUT ? 2021-08-09 12:00:00
 # OnPortal_OUT <- OnPortal_OUT |> 
 #   mutate(`Ni` = if_else(
@@ -420,7 +426,7 @@ OnPortal_OUT_long <- OnPortal_OUT_long %>%
 #Portal data to merge with the new data (need to keep the 99999 error code)
 OnPortal_OUT_ToMerge <- OnPortal_OUT_long
 
-#add a column saying that this is the data from the portal
+#On Portal data to preview - add a column saying that this is the data from the portal
 OnPortal_OUT_long_ToPreview <-  OnPortal_OUT_long %>% 
   mutate(dataset = "OnPortal")
 
@@ -544,11 +550,11 @@ p <- ggplot(stream_chem_combined_long,
       values = c(
         "MIN" = "grey60",
         "OUT" = "black"),
-      name = "Depth (m)") +
+      name = "Sampling Point") +
     scale_shape_manual(
       values = c(
         "OnPortal" = 4,   # x
-        "NewData" = 16),  # closed dot
+        "NewData" = 21),  # closed dot
       name = "Dataset") +
     labs(
       title = paste("QC plots — page", i),
