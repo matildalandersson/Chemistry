@@ -1,0 +1,101 @@
+---
+title: "Abisko_Chemistry_Merge"
+author: "Matilda Andersson"
+date: "2026-06-24"
+output: html_document
+---
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+load data - this now just uploads the entire Abisko folder with all the data
+IMPORTANT - it's important that the file names follow the naming conventions so that everything uploaded makes sense
+```{r}
+list.files(path = "ProcessedData/Abisko", 
+           pattern = "\\.csv$", 
+           full.names = TRUE) %>%
+  set_names(~ basename(.) %>% str_remove("\\.csv$")) %>%
+  map(read_csv) %>%
+  list2env(envir = .GlobalEnv)
+
+rm(TagTag_ANS_ALM_2022) #this is for Almbergasjön which is no longer being updated
+```
+
+
+```{r}
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "ANS" #STATION Abbreviation here
+LakeSamplingLocation <- "LHL" #sampling code here
+EndYear <- 2025 #END YEAR HERE
+```
+
+YOU STOPED HERE -- need the TagTag for Långa Harrsjön before you continue
+convert LOD to 99999 and NaN to NA and convert everything to numeric 
+```{r}
+TagTag <- TagTag %>%
+  mutate(across(!any_of(c("TIMESTAMP", "SampleID")), as.numeric))
+
+df_names <- ls()[sapply(ls(), function(x) is.data.frame(get(x)))]
+df_names <- df_names[df_names != "TagTag"]
+
+for(df_name in df_names) {
+  assign(df_name, get(df_name) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), as.character)) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ if_else(. == "LOD", "99999", .))) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ suppressWarnings(as.numeric(.)))) %>%
+    mutate(across(!any_of(c("TIMESTAMP", "SampleID")), ~ if_else(is.nan(.), NA_real_, .)))
+  )
+}
+```
+
+merge any overlapping data sets
+```{r}
+#NP
+NP_all <- bind_rows(mget(ls(pattern = "^NP"))) |> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^NP"), "NP_all"))
+
+#DOC
+DOC_TOTN_all <- bind_rows(mget(ls(pattern = "^DOC")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^DOC"), "DOC_TOTN_all"))
+
+#Anions
+Anions_all <- bind_rows(mget(ls(pattern = "^Anions")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^Anions"), "Anions_all"))
+
+#Cations
+Cations_all <- bind_rows(mget(ls(pattern = "^Cations")))|> 
+  distinct()
+rm(list = setdiff(ls(pattern = "^Cations"), "Cations_all"))
+
+```
+
+
+merge data - keep everything from TagTag leave NAs in the other locations
+```{r}
+TagTag <- TagTag %>%
+  left_join(DOC_TOTN_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(NP_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Anions_all, by = "SampleID")
+
+TagTag <- TagTag %>%
+  left_join(Cations_all, by = "SampleID")
+
+rm(DOC_TOTN_all, NP_all, Anions_all, Cations_all)
+
+#just for abisko - drop F until things are re-run - there was a problem with a difference in magnitude between the two labs
+# TagTag <- TagTag %>% 
+#   select(-"F")
+
+rm(EC_pH_Asa_2022_2025)
+
+```
