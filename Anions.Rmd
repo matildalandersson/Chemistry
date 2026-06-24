@@ -22,15 +22,15 @@ load data - sometimes the filenames are different so you cant fully automate
 ```{r}
 rm(list = ls())
 
-rawfile <- "anions_UU_Skogaryd_2025" #ENTER YOUR FILENAME HERE
+rawfile <- "anions_UU_Skogaryd_2023_2024" #ENTER YOUR FILENAME HERE
 
 filepath <- paste0("LabResults/Anions/", rawfile, ".xlsx")
 df <- read_excel(filepath, sheet = "RESULTS")
 
 # WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
 StationName <- "Skogaryd" #STATION NAME HERE
-StartYear <- 2025 #START YEAR HERE
-EndYear <- 2025 #END YEAR HERE
+StartYear <- 2023 #START YEAR HERE
+EndYear <- 2024 #END YEAR HERE
 ```
 
 **check results** - if something other than mg/L shows up you will need to do a conversion
@@ -91,7 +91,7 @@ df <- df %>%
 Write clean data to .csv
 ```{r}
 # Construct the filename
-filename <- paste0("ProcessedData/Anions_", StationName, "_", StartYear,"_",EndYear, ".csv")
+filename <- paste0("ProcessedData/", StationName, "/Anions_", StationName, "_", StartYear,"_",EndYear, ".csv")
 
 # Export to CSV
 write.csv(df, filename, row.names = FALSE, quote = FALSE)
