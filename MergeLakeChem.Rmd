@@ -50,8 +50,6 @@ NP_Asa_2025_2025 <- read_csv("ProcessedData/NP_Asa_2025_2025.csv")
 
 #EC and pH (sometimes combined with TagTag)
 EC_pH_Asa_2022_2025 <- read_csv("ProcessedData/EC_pH_Asa_2022_2025.csv")
-
-
 ```
 
 

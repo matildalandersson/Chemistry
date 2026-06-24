@@ -24,7 +24,6 @@ list.files(path = "ProcessedData/Abisko",
 rm(TagTag_ANS_ALM_2022) #this is for Almbergasjön which is no longer being updated
 ```
 
-
 ```{r}
 # WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
 StationName <- "ANS" #STATION Abbreviation here
