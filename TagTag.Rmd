@@ -21,7 +21,7 @@ load data - sometimes the filenames are different so you cant fully automate
 ```{r}
 rawfile <- "5-101F TagTags export_Skogaryd_2024" #ENTER YOUR FILENAME HERE
 
-filepath <- paste0("TagTag/2024/", rawfile, ".xlsx")
+filepath <- paste0("TagTag/SRC/", rawfile, ".xlsx")
 df <- read_excel(filepath)
 
 # WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
@@ -71,11 +71,10 @@ df <- df %>%
   relocate(TIMESTAMP, .after = SampleID)
 ```
 
-
 Write clean data to .csv
 ```{r}
 # Construct the filename
-filename <- paste0("ProcessedData/TagTag_", StationName, "_", Year, ".csv")
+filename <- paste0("ProcessedData/", StationName, "/TagTag_", StationName, "_", Year, ".csv")
 
 # Export to CSV
 write.csv(df, filename, row.names = FALSE)
