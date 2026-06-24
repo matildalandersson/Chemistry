@@ -17,7 +17,7 @@ library(readxl)
 load data - sometimes the filenames are different so you cant fully automate
 *CHANGE SOMETHING MANUALLY HERE*
 ```{r}
-rawfile <- "cations_GU_Abisko_25" #ENTER YOUR FILENAME HERE
+rawfile <- "cations_GU_Skogaryd_23" #ENTER YOUR FILENAME HERE
 
 #use for .csv
 filepath <- paste0("LabResults/Cations/", rawfile, ".csv")
@@ -28,16 +28,16 @@ filepath <- paste0("LabResults/Cations/", rawfile, ".xlsx")
 df <- read_excel(filepath)
 
 # WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
-StationName <- "Abisko" #STATION NAME HERE
-StartYear <- 2024 #START YEAR HERE
-EndYear <- 2025 #END YEAR HERE
+StationName <- "Skogaryd" #STATION NAME HERE
+StartYear <- 2023 #START YEAR HERE
+EndYear <- 2023 #END YEAR HERE
 ```
 
 clean up
 ```{r}
 #drop first column
 df <- df |> 
-  select(-`Measurement session`, -element)
+  select(-`Measurement session`, -any_of("element")) #this only removes the column element if it exists (inconsistent naming from lab)
 
 df <- df %>%
   drop_na(`Sample Name`)
@@ -77,7 +77,7 @@ df <- df %>%
 Write clean data to .csv
 ```{r}
 # Construct the filename
-filename <- paste0("ProcessedData/Cations_", StationName, "_", StartYear,"_",EndYear, ".csv")
+filename <- paste0("ProcessedData/", StationName, "/Cations_", StationName, "_", StartYear,"_",EndYear, ".csv")
 
 # Export to CSV
 write.csv(df, filename, row.names = FALSE, quote = FALSE)
