@@ -1,0 +1,181 @@
+---
+title: "DOC and N-TOT"
+author: "Matilda Andersson"
+date: "2025-10-01"
+output: html_document
+---
+
+NOTE - there is different code for the results that come from Skogaryd and the results from SLU Umeå lab
+
+load packages
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+#SLU Umeå lab
+load data - sometimes the filenames are different so you cant fully automate
+Make sure that in the raw data in the RESULTS tab you drop the columns with RSD
+
+**CHANGE SOMETHING MANUALLY HERE**
+```{r}
+rawfile <- "TOC_TN_Umeå_Asa_2025" #ENTER YOUR FILENAME HERE
+
+filepath <- paste0("LabResults/TOC/", rawfile, ".xlsx")
+df <- read_excel(filepath, sheet = "RESULTS")
+
+#WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA 
+StationName <- "Asa" #STATION NAME HERE
+StartYear <- 2025 #START YEAR HERE
+EndYear <- 2026 #END YEAR HERE
+```
+
+**check results** - if something other than mg/L shows up you will need to do a conversion
+```{r}
+unique(as.character(unlist(df[1, ])))
+```
+
+as long as the above is mg/L - continue
+```{r}
+#drop the first row
+df <- df %>%
+  slice(-1)
+
+#drop unnecessary columns
+df <- df %>%
+  select(-any_of(c("CUSTID 1", "CUSTID 2", "KUNDID 1", "KUNDID", "Cust ID 1", "Cust ID 2")))
+```
+
+**check data**
+Check whether there are any that = 9999 (using this as the error code)
+```{r}
+df %>%
+  summarise(across(everything(), ~ any(. == 9999, na.rm = TRUE)))
+```
+
+**check results**
+Check whether there are any LODs in the results - if there are you need to convert them to 9999 and then convert them back later 
+```{r}
+df %>%
+  summarise(across(everything(), ~ any(grepl("^<$|^LOD$|^<LOD$", ., ignore.case = TRUE), na.rm = TRUE))) #this shows anything that has < or LOD or <LOD, this should also catch any weird spaces in the LOD cell
+
+#only need to run this if there are LOD above
+# df <- df %>%
+#   mutate(across(everything(), ~ ifelse(grepl("^<|^LOD$", ., ignore.case = TRUE), 9999, .)))
+```
+
+convert to numeric
+```{r}
+df <- df %>%  # convert all columns except the first to numeric
+ mutate(across(-1, as.numeric))
+```
+
+Rename
+Note - there is no LOD for this data
+```{r}
+df <- df %>%
+  rename(
+    SampleID = `Lab ID`,
+    DOC = `NPOC`,
+    `TOT-N` = `TN`)
+```
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/", StationName, "/DOC_TOTN_", StationName, "_", StartYear,"_",EndYear, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE, quote = FALSE)
+```
+
+
+#Skogaryd lab
+They run this themselves and the format is specific to them
+load data
+
+NOTE - 2026-06-25 -- there is one date in 2025 where it seems like data should be re-calcualted but it wasn't, that needs to be added to the raw file and then things can be run through here. 
+2024 - is missing all but 1 file - e-mailed Aila to get access to the rest
+
+*CHANGE SOMETHING MANUALLY HERE*
+```{r}
+#formatted for excel files
+rawfile <- "TOC_GU_Skogaryd_2025" #ENTER YOUR FILENAME HERE
+
+filepath <- paste0("LabResults/TOC/", rawfile, ".xlsx")
+df <- read_excel(filepath, sheet = "RESULTS")
+
+# WRITE YOUR STATION NAME, START YEAR AND END YEAR ACCORDING TO WHAT IS IN YOUR DATA
+StationName <- "Skogaryd" #STATION NAME HERE
+StartYear <- 2025 #START YEAR HERE
+EndYear <- 2025 #END YEAR HERE
+```
+
+drop unnecessary columns and rows
+```{r}
+#drop anything above the data
+df <- df %>%
+  slice(-(1:which(.[[1]] == "[Data]")[1]))
+
+df <- df %>%
+  slice(-1) %>%              # Remove first row after storing names
+  setNames(as.character(df[1, ]))  # Set first row as names
+
+df <- df %>%
+  select(-any_of(c("Type", "Sample ID", "Vial", "Date / Time")))
+
+```
+
+*check results*
+```{r}
+#units - we use mg/L - double check that it's only mg/L displayed when you run this
+df %>%
+  distinct(Unit) %>%
+  pull(Unit)
+```
+
+more cleaning
+```{r}
+#as long as it's only mg/L above you can drop this column
+df <- df %>%
+  select(-("Unit"))
+
+#remove the things that are blanks etc. just keep Skogaryd data (5-)
+df <- df %>%
+  filter(grepl("^5-", df[[1]]))
+
+df <- df %>%  # convert all columns except the first to numeric
+ mutate(across(-1, as.numeric))
+
+#change the number of decimals - different for the two columns
+df <- df %>%
+  mutate(`Result(NPOC)` = round(as.numeric(`Result(NPOC)`), 2)) %>%
+  mutate(`Result(TN)` = round(as.numeric(`Result(TN)`), 4))
+```
+
+Rename
+Note - there is no LOD for this data
+```{r}
+df <- df %>%
+  rename(
+    SampleID = `Sample Name`,
+    DOC = `Result(NPOC)`,
+    `TOT-N` = `Result(TN)`)
+```
+
+
+Write clean data to .csv
+```{r}
+# Construct the filename
+filename <- paste0("ProcessedData/", StationName, "/DOC_TOTN_", StationName, "_", StartYear,"_",EndYear, ".csv")
+
+# Export to CSV
+write.csv(df, filename, row.names = FALSE, quote = FALSE)
+```
+
+
+
+
+
+
+
